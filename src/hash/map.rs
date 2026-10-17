@@ -39,6 +39,8 @@ use crate::nodes::hamt::{
 };
 use crate::shared_ptr::DefaultSharedPtr;
 
+pub use crate::nodes::hamt::DropChunk;
+
 /// Construct a hash map from a sequence of key/value pairs.
 ///
 /// # Examples
@@ -202,6 +204,12 @@ impl<K, V, S, P: SharedPointerKind> GenericHashMap<K, V, S, P> {
     #[must_use]
     pub fn len(&self) -> usize {
         self.size
+    }
+
+    /// Consume the map into owned destruction chunks without traversing all entries.
+    /// Shared roots remain one chunk and preserve the other owners' contents.
+    pub fn into_drop_chunks(self) -> Vec<DropChunk<(K, V), P>> {
+        self.root.map(Node::into_drop_chunks).unwrap_or_default()
     }
 
     /// Test whether two maps refer to the same content in memory.

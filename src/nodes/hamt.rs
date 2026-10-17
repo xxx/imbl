@@ -98,6 +98,11 @@ where
     control: [SimdGroup; GROUPS],
 }
 
+/// An owned portion of a hash map retained solely for destruction.
+pub struct DropChunk<A, P: SharedPointerKind> {
+    _entry: Entry<A, P>,
+}
+
 /// HAMT node that stores Entry enum (can contain values or child nodes).
 /// Uses classic HAMT bitmap-indexed structure without SIMD.
 pub(crate) struct HamtNode<A, P: SharedPointerKind>
@@ -106,6 +111,23 @@ where
 {
     /// Stores Entry enum which can contain values, collision nodes, or child nodes
     data: SparseChunk<Entry<A, P>, HASH_WIDTH>,
+}
+
+impl<A, P: SharedPointerKind> HamtNode<A, P> {
+    pub(crate) fn into_drop_chunks(root: SharedPointer<Self, P>) -> Vec<DropChunk<A, P>> {
+        match SharedPointer::try_unwrap(root) {
+            Ok(mut node) => {
+                let mut chunks = Vec::with_capacity(node.data.len());
+                while let Some(entry) = node.data.pop() {
+                    chunks.push(DropChunk { _entry: entry });
+                }
+                chunks
+            }
+            Err(root) => vec![DropChunk {
+                _entry: Entry::HamtNode(root),
+            }],
+        }
+    }
 }
 
 impl<A: Clone, const WIDTH: usize, const GROUPS: usize> Clone for GenericSimdNode<A, WIDTH, GROUPS>
